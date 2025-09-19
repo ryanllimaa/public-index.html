@@ -122,6 +122,69 @@
       document.getElementById("ok").classList.remove("hidden");
       btn.disabled=false; btn.textContent="Quero meu acesso grátis";
     });
-  </script>
+<script>
+  // === CONFIG ===
+  const SUPABASE_FUNCTION_URL = "https://piewydyoisyfqndokzbn.functions.supabase.co/leads"; // sua Edge Function
+  const WHATSAPP = "5581992288619"; // seu número
+
+  // Helpers
+  const onlyDigits = s => (s || "").replace(/\D/g, "");
+  const getUTM = () => Object.fromEntries(new URLSearchParams(location.search));
+
+  // Gera uma chave idempotente (única) por envio
+  function makeIdempotencyKey(whatsapp) {
+    try { return crypto.randomUUID(); } catch { return (onlyDigits(whatsapp) || "anon") + "-" + Date.now(); }
+  }
+
+  const form = document.getElementById("leadForm");
+  if (form) {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const btn = document.getElementById("btn");
+      const nome = (document.getElementById("nome")?.value || "").trim();
+      const whatsapp = onlyDigits(document.getElementById("whatsapp")?.value || "");
+      const email = (document.getElementById("email")?.value || "").trim();
+
+      if (nome.length < 2) { alert("Informe seu nome."); return; }
+      if (whatsapp.length < 10) { alert("WhatsApp com DDD inválido."); return; }
+
+      btn.disabled = true; btn.textContent = "Enviando...";
+
+      const idemKey = makeIdempotencyKey(whatsapp);
+      const payload = {
+        nome, whatsapp, email,
+        utm: getUTM(),
+        page_url: location.href,
+        referrer: document.referrer || ""
+      };
+
+      try {
+        await fetch(SUPABASE_FUNCTION_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            // 👉 Header que sua função exige:
+            "X-Idempotency-Key": idemKey
+          },
+          body: JSON.stringify(payload)
+        });
+      } catch (_) {
+        // não quebra a UX se falhar
+      }
+
+      // Abre seu WhatsApp
+      const texto = encodeURIComponent(`Oi! Quero participar do teste gratuito do Leveo. Meu nome é ${nome}.`);
+      window.open(`https://wa.me/${WHATSAPP}?text=${texto}`, "_blank", "noopener");
+
+      // Feedback visual
+      document.getElementById("leadForm")?.classList.add("hidden");
+      document.getElementById("ok")?.classList.remove("hidden");
+
+      btn.disabled = false; btn.textContent = "Quero meu acesso grátis";
+    });
+  }
+</script>
+
 </body>
 </html>
